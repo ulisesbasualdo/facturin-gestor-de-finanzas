@@ -12,4 +12,6 @@ export class Item {
     public completed: boolean;
     @Column()
     public yearMonth: string;
+    @Column()
+    public isGain: boolean;
 }

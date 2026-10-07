@@ -14,4 +14,7 @@ export class CreateItemDto {
   @IsString()
   @IsNotEmpty()
   yearMonth: string;
+
+  @IsBoolean()
+  isGain: boolean;
 }

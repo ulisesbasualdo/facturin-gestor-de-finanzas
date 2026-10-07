@@ -22,7 +22,7 @@ import { ItemModule } from './items/item.module.js';
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_DATABASE'),
         entities: [Item],
-        synchronize: true,
+        synchronize: false,
       }),
     }),
     ItemModule,
