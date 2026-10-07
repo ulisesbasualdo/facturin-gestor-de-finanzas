@@ -3,6 +3,7 @@ import { ItemService } from "./item.service.js";
 import { Item } from "./item.entity.js";
 import { CreateItemDto } from "./dto/create-item.dto.js";
 import { UpdateItemDto } from "./dto/update-item.dto.js";
+import { MonthlySummary } from "./interfaces/monthly-summary.interface.js";
 
 @Controller("items")
 export class ItemController {
@@ -14,6 +15,10 @@ export class ItemController {
     @Get(":yearMonth")
     findByYearAndMonth(@Param("yearMonth") yearMonth: string): Promise<Item[]> {
         return this.itemService.findByYearAndMonth(yearMonth);
+    }
+    @Get(":yearMonth/summary")
+    getMonthlySummary(@Param("yearMonth") yearMonth: string): Promise<MonthlySummary> {
+        return this.itemService.getMonthlySummary(yearMonth);
     }
     @Post()
     save(@Body() item: CreateItemDto): Promise<Item> {

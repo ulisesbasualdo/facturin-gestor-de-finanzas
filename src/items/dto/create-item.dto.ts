@@ -1,4 +1,4 @@
-import { IsBoolean, IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsString, Matches } from 'class-validator';
 
 export class CreateItemDto {
   @IsString()
@@ -12,7 +12,9 @@ export class CreateItemDto {
   completed: boolean;
 
   @IsString()
-  @IsNotEmpty()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, {
+    message: 'yearMonth debe tener el formato YYYY-MM (ej. 2026-01)',
+  })
   yearMonth: string;
 
   @IsBoolean()
