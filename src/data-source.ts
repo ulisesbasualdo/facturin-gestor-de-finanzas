@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { DataSource } from "typeorm";
 import { Item } from "./items/item.entity.js";
+import { MonthClose } from "./months/month-close.entity.js";
 
 export default new DataSource({
     type: 'mysql',
@@ -9,7 +10,7 @@ export default new DataSource({
     username: process.env.DB_USERNAME,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
-    entities: [Item],
+    entities: [Item, MonthClose],
     migrations: ['src/migrations/*.ts'],
     synchronize: false,
   });

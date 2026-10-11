@@ -1,18 +1,19 @@
 import { IsBoolean, IsNotEmpty, IsNumber, IsString, Matches } from 'class-validator';
+import { YEAR_MONTH_PATTERN } from '../../common/year-month.js';
 
 export class CreateItemDto {
   @IsString()
   @IsNotEmpty()
   title: string;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   price: number;
 
   @IsBoolean()
   completed: boolean;
 
   @IsString()
-  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, {
+  @Matches(YEAR_MONTH_PATTERN, {
     message: 'yearMonth debe tener el formato YYYY-MM (ej. 2026-01)',
   })
   yearMonth: string;

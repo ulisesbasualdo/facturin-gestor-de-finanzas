@@ -3,13 +3,64 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Item } from './item.entity.js';
 import { CreateItemDto } from './dto/create-item.dto.js';
 import { UpdateItemDto } from './dto/update-item.dto.js';
-import { LessThan, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { MonthlySummary } from './interfaces/monthly-summary.interface.js';
+import { MonthService } from '../months/month.service.js';
+import { currentYearMonth } from '../common/year-month.js';
+
+/** Montos del resumen, calculados por MySQL. */
+type SummaryAmounts = Omit<MonthlySummary, 'trend' | 'monthStatus'>;
+
+/**
+ * Calcula todos los montos del resumen de un mes.
+ * Parámetros: mes, mes, mes, mes actual.
+ */
+const SUMMARY_SQL = `
+  SELECT
+    t.gained,
+    t.spent,
+    t.pendingIncome,
+    t.pendingExpenses,
+    t.gained + t.pendingIncome AS totalIncome,
+    t.spent + t.pendingExpenses AS totalExpenses,
+    t.gained - t.spent AS remaining,
+    t.gained - t.spent - t.pendingExpenses AS projectedMonthEnd,
+    t.gained - t.spent - t.pendingExpenses + t.pendingIncome AS projectedWithPendingIncome,
+    a.accumulated AS accumulatedBeforeThisMonth,
+    a.accumulated + t.gained - t.spent - t.pendingExpenses AS totalProjectedSavings,
+    a.accumulated + t.gained - t.spent - t.pendingExpenses + t.pendingIncome AS totalProjectedSavingsWithPendingIncome
+  FROM (
+    SELECT
+      COALESCE(SUM(CASE WHEN isGain AND completed THEN price END), 0) AS gained,
+      COALESCE(SUM(CASE WHEN NOT isGain AND completed THEN price END), 0) AS spent,
+      COALESCE(SUM(CASE WHEN isGain AND NOT completed THEN price END), 0) AS pendingIncome,
+      COALESCE(SUM(CASE WHEN NOT isGain AND NOT completed THEN price END), 0) AS pendingExpenses
+    FROM item
+    WHERE yearMonth = ?
+  ) t
+  CROSS JOIN (
+    SELECT
+      (
+        SELECT COALESCE(SUM(net), 0)
+        FROM month_close
+        WHERE yearMonth < ? AND reopenedAt IS NULL
+      ) + (
+        SELECT COALESCE(SUM(CASE WHEN isGain THEN price ELSE -price END), 0)
+        FROM item
+        WHERE yearMonth < ? AND completed
+          AND (
+            yearMonth >= ?
+            OR yearMonth IN (SELECT yearMonth FROM month_close WHERE reopenedAt IS NOT NULL)
+          )
+      ) AS accumulated
+  ) a`;
 
 @Injectable()
 export class ItemService {
   constructor(
     @InjectRepository(Item) private readonly itemRepository: Repository<Item>,
+    private readonly dataSource: DataSource,
+    private readonly monthService: MonthService,
   ) {}
   findAll(): Promise<Item[]> {
     return this.itemRepository.find();
@@ -18,69 +69,57 @@ export class ItemService {
     return this.itemRepository.find({ where: { yearMonth } });
   }
   save(item: CreateItemDto): Promise<Item> {
-    return this.itemRepository.save(item);
+    return this.dataSource.transaction(async (manager) => {
+      await this.monthService.assertWritable(manager, item.yearMonth);
+      return manager.save(Item, item);
+    });
   }
-  async update(id: number, changes: UpdateItemDto): Promise<Item> {
-    const item = await this.itemRepository.findOneBy({ id });
-    if (!item) {
-      throw new NotFoundException(`Item ${id} no existe`);
-    }
-    return this.itemRepository.save({ ...item, ...changes, id });
+  update(id: number, changes: UpdateItemDto): Promise<Item> {
+    return this.dataSource.transaction(async (manager) => {
+      const item = await this.findOrFail(manager, id);
+      const months = new Set([item.yearMonth, changes.yearMonth ?? item.yearMonth]);
+      for (const yearMonth of [...months].sort()) {
+        await this.monthService.assertWritable(manager, yearMonth);
+      }
+      return manager.save(manager.merge<Item>(Item, item, changes));
+    });
   }
-  async delete(id: number): Promise<void> {
-    const result = await this.itemRepository.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`Item ${id} no existe`);
-    }
+  delete(id: number): Promise<void> {
+    return this.dataSource.transaction(async (manager) => {
+      const item = await this.findOrFail(manager, id);
+      await this.monthService.assertWritable(manager, item.yearMonth);
+      await manager.delete(Item, id);
+    });
   }
-  async duplicate(id: number): Promise<Item> {
-    const item = await this.itemRepository.findOneBy({ id });
-    if (!item) {
-      throw new NotFoundException(`Item ${id} no existe`);
-    }
-    const { id: _omit, ...rest } = item;
-    return this.itemRepository.save(rest);
+  duplicate(id: number): Promise<Item> {
+    return this.dataSource.transaction(async (manager) => {
+      const item = await this.findOrFail(manager, id);
+      await this.monthService.assertWritable(manager, item.yearMonth);
+      const { id: _omit, ...rest } = item;
+      return manager.save(Item, rest);
+    });
   }
   async getMonthlySummary(yearMonth: string): Promise<MonthlySummary> {
-    const monthItems = await this.itemRepository.find({ where: { yearMonth } });
-
-    const gained = this.sumWhere(monthItems, (i) => i.isGain && i.completed);
-    const spent = this.sumWhere(monthItems, (i) => !i.isGain && i.completed);
-    const pendingExpenses = this.sumWhere(
-      monthItems,
-      (i) => !i.isGain && !i.completed,
+    await this.monthService.cacheClosedMonths();
+    const [row]: Record<keyof SummaryAmounts, string>[] = await this.dataSource.query(
+      SUMMARY_SQL,
+      [yearMonth, yearMonth, yearMonth, currentYearMonth()],
     );
-
-    const remaining = gained - spent;
-    const projectedMonthEnd = remaining - pendingExpenses;
-
-    const previousItems = await this.itemRepository.find({
-      where: { yearMonth: LessThan(yearMonth), completed: true },
-    });
-    const accumulatedBeforeThisMonth = previousItems.reduce(
-      (total, i) => total + (i.isGain ? i.price : -i.price),
-      0,
-    );
-
-    const totalProjectedSavings =
-      accumulatedBeforeThisMonth + projectedMonthEnd;
-
+    const amounts = Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [key, Number(value)]),
+    ) as SummaryAmounts;
     return {
-      gained,
-      spent,
-      pendingExpenses,
-      remaining,
-      projectedMonthEnd,
-      accumulatedBeforeThisMonth,
-      totalProjectedSavings,
-      trend: projectedMonthEnd >= 0 ? 'increase' : 'decrease',
+      ...amounts,
+      trend: amounts.projectedMonthEnd >= 0 ? 'increase' : 'decrease',
+      monthStatus: await this.monthService.getStatus(yearMonth),
     };
   }
 
-  private sumWhere(
-    items: Item[],
-    predicate: (item: Item) => boolean,
-  ): number {
-    return items.filter(predicate).reduce((total, i) => total + i.price, 0);
+  private async findOrFail(manager: EntityManager, id: number): Promise<Item> {
+    const item = await manager.findOneBy(Item, { id });
+    if (!item) {
+      throw new NotFoundException(`Item ${id} no existe`);
+    }
+    return item;
   }
 }

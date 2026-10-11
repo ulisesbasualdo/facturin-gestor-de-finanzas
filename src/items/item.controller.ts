@@ -4,6 +4,7 @@ import { Item } from "./item.entity.js";
 import { CreateItemDto } from "./dto/create-item.dto.js";
 import { UpdateItemDto } from "./dto/update-item.dto.js";
 import { MonthlySummary } from "./interfaces/monthly-summary.interface.js";
+import { ParseYearMonthPipe } from "../common/parse-year-month.pipe.js";
 
 @Controller("items")
 export class ItemController {
@@ -13,11 +14,11 @@ export class ItemController {
         return this.itemService.findAll();
     }
     @Get(":yearMonth")
-    findByYearAndMonth(@Param("yearMonth") yearMonth: string): Promise<Item[]> {
+    findByYearAndMonth(@Param("yearMonth", ParseYearMonthPipe) yearMonth: string): Promise<Item[]> {
         return this.itemService.findByYearAndMonth(yearMonth);
     }
     @Get(":yearMonth/summary")
-    getMonthlySummary(@Param("yearMonth") yearMonth: string): Promise<MonthlySummary> {
+    getMonthlySummary(@Param("yearMonth", ParseYearMonthPipe) yearMonth: string): Promise<MonthlySummary> {
         return this.itemService.getMonthlySummary(yearMonth);
     }
     @Post()

@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Item } from './items/item.entity.js';
 import { ItemModule } from './items/item.module.js';
+import { MonthClose } from './months/month-close.entity.js';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { ItemModule } from './items/item.module.js';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_DATABASE'),
-        entities: [Item],
+        entities: [Item, MonthClose],
         synchronize: false,
       }),
     }),
