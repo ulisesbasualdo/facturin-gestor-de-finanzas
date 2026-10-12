@@ -1,8 +1,8 @@
-import { Column, Entity, Index, PrimaryGeneratedColumn } from "typeorm";
+import { Column, DeleteDateColumn, Entity, Index, PrimaryGeneratedColumn } from "typeorm";
 import { decimalTransformer } from "../common/decimal.transformer.js";
 
 @Entity()
-@Index("IDX_item_month", ["yearMonth", "completed", "isGain", "price"])
+@Index("IDX_item_month", ["yearMonth", "deletedAt", "completed", "isGain", "price"])
 export class Item {
     @PrimaryGeneratedColumn()
     public id: number;
@@ -16,4 +16,6 @@ export class Item {
     public yearMonth: string;
     @Column()
     public isGain: boolean;
+    @DeleteDateColumn({ type: "datetime", nullable: true, select: false })
+    public deletedAt: Date | null;
 }

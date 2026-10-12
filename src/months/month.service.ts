@@ -15,7 +15,7 @@ const CLOSE_REOPENED_SQL = `
     m.net = (
       SELECT COALESCE(SUM(CASE WHEN i.isGain THEN i.price ELSE -i.price END), 0)
       FROM item i
-      WHERE i.yearMonth = m.yearMonth AND i.completed
+      WHERE i.yearMonth = m.yearMonth AND i.completed AND i.deletedAt IS NULL
     ),
     m.closedAt = NOW(),
     m.reopenedAt = NULL
@@ -61,7 +61,7 @@ export class MonthService {
         NOW()
       FROM item i
       LEFT JOIN month_close m ON m.yearMonth = i.yearMonth
-      WHERE m.yearMonth IS NULL AND i.yearMonth < ?
+      WHERE m.yearMonth IS NULL AND i.yearMonth < ? AND i.deletedAt IS NULL
       GROUP BY i.yearMonth
       ON DUPLICATE KEY UPDATE month_close.yearMonth = month_close.yearMonth`,
       [currentYearMonth()],
