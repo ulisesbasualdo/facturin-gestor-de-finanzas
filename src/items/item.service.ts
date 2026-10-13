@@ -36,7 +36,7 @@ const SUMMARY_SQL = `
       COALESCE(SUM(CASE WHEN isGain AND NOT completed THEN price END), 0) AS pendingIncome,
       COALESCE(SUM(CASE WHEN NOT isGain AND NOT completed THEN price END), 0) AS pendingExpenses
     FROM item
-    WHERE yearMonth = ? AND deletedAt IS NULL
+    WHERE yearMonth = ?
   ) t
   CROSS JOIN (
     SELECT
@@ -47,7 +47,7 @@ const SUMMARY_SQL = `
       ) + (
         SELECT COALESCE(SUM(CASE WHEN isGain THEN price ELSE -price END), 0)
         FROM item
-        WHERE yearMonth < ? AND completed AND deletedAt IS NULL
+        WHERE yearMonth < ? AND completed
           AND (
             yearMonth >= ?
             OR yearMonth IN (SELECT yearMonth FROM month_close WHERE reopenedAt IS NOT NULL)
@@ -66,7 +66,7 @@ export class ItemService {
     return this.itemRepository.find();
   }
   findByYearAndMonth(yearMonth: string): Promise<Item[]> {
-    return this.itemRepository.find({ where: { yearMonth } });
+    return this.itemRepository.find({ where: { yearMonth }, order: { id: 'DESC' } });
   }
   save(item: CreateItemDto): Promise<Item> {
     return this.dataSource.transaction(async (manager) => {
@@ -88,18 +88,7 @@ export class ItemService {
     return this.dataSource.transaction(async (manager) => {
       const item = await this.findOrFail(manager, id);
       await this.monthService.assertWritable(manager, item.yearMonth);
-      await manager.softDelete(Item, id);
-    });
-  }
-  restore(id: number): Promise<Item> {
-    return this.dataSource.transaction(async (manager) => {
-      const item = await manager.findOne(Item, { where: { id }, withDeleted: true });
-      if (!item) {
-        throw new NotFoundException(`Item ${id} no existe`);
-      }
-      await this.monthService.assertWritable(manager, item.yearMonth);
-      await manager.restore(Item, id);
-      return item;
+      await manager.delete(Item, id);
     });
   }
   duplicate(id: number): Promise<Item> {

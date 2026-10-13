@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from "@nestjs/common";
 import { ItemService } from "./item.service.js";
 import { Item } from "./item.entity.js";
 import { CreateItemDto } from "./dto/create-item.dto.js";
@@ -32,11 +32,6 @@ export class ItemController {
     @Delete(":id")
     delete(@Param("id", ParseIntPipe) id: number): Promise<void> {
         return this.itemService.delete(id);
-    }
-    @Post(":id/restore")
-    @HttpCode(200)
-    restore(@Param("id", ParseIntPipe) id: number): Promise<Item> {
-        return this.itemService.restore(id);
     }
     @Post(":id/duplicate")
     duplicate(@Param("id", ParseIntPipe) id: number): Promise<Item> {
