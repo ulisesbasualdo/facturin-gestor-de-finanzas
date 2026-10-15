@@ -12,6 +12,18 @@ const REDACTED_PATHS = [
   'res.headers["set-cookie"]',
 ];
 
+/** Datos de un error que se loguean: tipo, código, mensaje y stack, nunca las consultas ni sus parámetros. */
+export function serializeError(error: unknown) {
+  if (!(error instanceof Error)) return { type: typeof error };
+  const code: unknown = (error as { code?: unknown }).code;
+  return {
+    type: error.constructor.name,
+    code: typeof code === 'string' ? code : undefined,
+    message: error.message,
+    stack: error.stack,
+  };
+}
+
 /** Configuración de pino: un id por request, nivel según el status y salida JSON o legible según el entorno. */
 export function loggerParams(config: ConfigService): Params {
   const pretty = config.get<string>('LOG_FORMAT') === 'pretty';
@@ -35,6 +47,7 @@ export function loggerParams(config: ConfigService): Params {
           url: request.url,
         }),
         res: (response: { statusCode: number }) => ({ statusCode: response.statusCode }),
+        err: serializeError,
       },
       redact: REDACTED_PATHS,
       transport: pretty
