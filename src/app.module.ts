@@ -1,4 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { LoggerModule } from 'nestjs-pino';
+import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
+import { loggerParams } from './common/logger.config.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -11,6 +15,10 @@ import { MonthClose } from './months/month-close.entity.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: loggerParams,
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -29,6 +37,6 @@ import { MonthClose } from './months/month-close.entity.js';
     ItemModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_FILTER, useClass: AllExceptionsFilter }],
 })
 export class AppModule {}
